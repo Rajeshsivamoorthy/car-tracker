@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Car Investment Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one column workspace. Header with save state, tab bar, then a summary-first overview (gain, tiles, cash curve, breakdown, projection) and data tabs for ledger, extras, schedule, settings. */
+:root{
+  --bg:#EDF2F2; --surface:#FFFFFF; --surface-2:#E3EBEB; --ink:#10262B; --muted:#53696D; --line:#D0DCDC;
+  --accent:#17636B; --accent-ink:#FFFFFF; --accent-soft:#DCEDEE;
+  --good:#17703F; --good-soft:#DDF1E5; --bad:#B3261E; --bad-soft:#F8E1DE; --warn:#8A5A00; --warn-soft:#F8EBCB;
+  --c-down:#17636B; --c-prin:#4A82B5; --c-int:#C0801A; --c-extra:#8460B0;
+  --font-display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --font-body:'Figtree','Segoe UI',system-ui,-apple-system,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1618; --surface:#142226; --surface-2:#1B2E33; --ink:#E4EFEF; --muted:#9AB0B3; --line:#27393D;
+    --accent:#58B6BF; --accent-ink:#06191C; --accent-soft:#17383D;
+    --good:#5DD08A; --good-soft:#143323; --bad:#FF8C80; --bad-soft:#3A1C19; --warn:#E6B656; --warn-soft:#3A2F12;
+    --c-down:#58B6BF; --c-prin:#7FAEDC; --c-int:#E0A44A; --c-extra:#B49AD8;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1618; --surface:#142226; --surface-2:#1B2E33; --ink:#E4EFEF; --muted:#9AB0B3; --line:#27393D;
+  --accent:#58B6BF; --accent-ink:#06191C; --accent-soft:#17383D;
+  --good:#5DD08A; --good-soft:#143323; --bad:#FF8C80; --bad-soft:#3A1C19; --warn:#E6B656; --warn-soft:#3A2F12;
+  --c-down:#58B6BF; --c-prin:#7FAEDC; --c-int:#E0A44A; --c-extra:#B49AD8;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{color-scheme:light}
+body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.5;padding-block:0 48px;padding-inline:16px;font-variant-numeric:tabular-nums}
+.wrap{max-width:1040px;margin-inline:auto}
+h1,h2,h3{font-family:var(--font-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center;justify-content:space-between;padding-block:20px 12px}
+.top h1{font-size:26px;font-weight:700}
+.top .sub{color:var(--muted);font-size:13px;margin-top:2px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--surface-2);color:var(--muted)}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.chip.ok{color:var(--good);background:var(--good-soft)}
+.chip.bad{color:var(--bad);background:var(--bad-soft)}
+.chip.warn{color:var(--warn);background:var(--warn-soft)}
+
+/* tabs */
+.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin-bottom:20px;scrollbar-width:thin}
+.tab{appearance:none;background:none;border:0;border-bottom:3px solid transparent;padding:10px 14px;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.tab:hover{color:var(--ink)}
+.panel[hidden]{display:none}
+
+/* surfaces */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;min-width:0}
+.card h2{font-size:18px;font-weight:700;margin-bottom:4px}
+.card .lede{color:var(--muted);font-size:13px;margin:0 0 14px}
+.stack{display:grid;gap:16px}
+.cols{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
+.banner{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-weight:500}
+.btn{appearance:none;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.small{padding:4px 10px;font-size:13px}
+
+/* hero */
+.hero{display:grid;gap:6px;background:var(--accent);color:var(--accent-ink);border-radius:12px;padding:24px}
+.hero .k{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.85}
+.hero .big{font-family:var(--font-display);font-size:clamp(38px,8vw,60px);font-weight:800;line-height:1.05;letter-spacing:-.02em}
+.hero .row{display:flex;flex-wrap:wrap;gap:6px 18px;font-weight:600}
+.hero .eq{display:flex;flex-wrap:wrap;gap:6px 10px;font-size:13px;margin-top:10px;opacity:.92}
+.hero .eq span{background:rgba(255,255,255,.14);padding:3px 10px;border-radius:999px}
+:root[data-theme="dark"] .hero .eq span{background:rgba(0,0,0,.18)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .hero .eq span{background:rgba(0,0,0,.18)}}
+
+.tiles{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.tile .k{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.tile .v{font-family:var(--font-display);font-size:24px;font-weight:700;margin-top:2px;overflow-wrap:anywhere}
+.tile .n{font-size:12px;color:var(--muted)}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.hero .pos,.hero .neg{color:inherit}
+
+/* chart */
+.chart{width:100%;height:auto;display:block}
+.chart .ax{fill:var(--muted);font-size:11px;font-family:var(--font-body)}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .zero{stroke:var(--ink);stroke-width:1.2;opacity:.55}
+.chart .actual{fill:none;stroke:var(--accent);stroke-width:2.6;stroke-linejoin:round}
+.chart .proj{fill:none;stroke:var(--accent);stroke-width:2;stroke-dasharray:6 5;opacity:.75}
+.chart .dot{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.chart .mark{fill:var(--surface);stroke:var(--good);stroke-width:2.2}
+.chart .lbl{fill:var(--ink);font-size:12px;font-weight:600;font-family:var(--font-body)}
+.chart .s-inv{fill:none;stroke:var(--c-prin);stroke-width:2.6;stroke-linejoin:round}
+.chart .s-rec{fill:none;stroke:var(--accent);stroke-width:2.6;stroke-linejoin:round}
+.chart .d-inv{fill:var(--c-prin);stroke:var(--surface);stroke-width:2}
+.chart .d-rec{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.chart .b-rec{fill:var(--accent)} .chart .b-out{fill:var(--c-int)} .chart .b-inv{fill:var(--c-prin)}
+.chart .b-eq{fill:var(--c-extra)} .chart .b-gain{fill:var(--good)} .chart .b-loss{fill:var(--bad)}
+.chart .conn{stroke:var(--muted);stroke-dasharray:3 3;stroke-width:1}
+.legend b{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:22px;height:0;border-top:3px solid var(--accent);vertical-align:middle;margin-right:6px}
+.legend i.d{border-top:2px dashed var(--accent)}
+
+/* breakdown */
+.bd{display:grid;gap:10px}
+.bd .r{display:grid;grid-template-columns:minmax(110px,150px) 1fr auto;gap:10px;align-items:center}
+.bd .bar{height:14px;border-radius:4px;background:var(--surface-2);overflow:hidden}
+.bd .bar b{display:block;height:100%;border-radius:4px}
+.bd .amt{font-weight:600;text-align:right;white-space:nowrap}
+.bd .pc{color:var(--muted);font-weight:500;font-size:12px;margin-left:6px}
+.bd .tot{border-top:1px solid var(--line);padding-top:10px;display:flex;justify-content:space-between;font-weight:700}
+
+/* key/value lists */
+.kv{display:grid;gap:0;margin:0}
+.kv div{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid var(--line)}
+.kv div:last-child{border-bottom:0}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-weight:600;text-align:right}
+.kv .strong dt,.kv .strong dd{color:var(--ink);font-weight:700}
+.note{font-size:13px;color:var(--muted);margin:12px 0 0}
+.note.warn{color:var(--warn)}
+
+/* tables */
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px}
+th{background:var(--surface-2);font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:right;padding:10px 12px;position:sticky;top:0;white-space:nowrap}
+th:first-child,th:nth-child(2),td:first-child,td:nth-child(2){text-align:left}
+td{padding:6px 12px;border-top:1px solid var(--line);text-align:right;white-space:nowrap}
+tr.now td{background:var(--accent-soft)}
+td input{width:100%;min-width:92px;text-align:right;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 8px}
+td input:focus{border-color:var(--accent)}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--surface-2);color:var(--muted)}
+.pill.ok{background:var(--good-soft);color:var(--good)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.toolbar p{margin:0;color:var(--muted);font-size:13px}
+
+/* forms */
+.form{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))}
+.field{display:grid;gap:4px;min-width:0}
+.field label{font-weight:600;font-size:13px}
+.field .hint{font-size:12px;color:var(--muted)}
+.field input,.field select{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 10px}
+.field input:focus,.field select:focus{border-color:var(--accent)}
+.inline-form{display:grid;gap:12px;grid-template-columns:140px 190px 1fr 140px auto;align-items:end;margin-bottom:16px}
+@media (max-width:820px){.inline-form{grid-template-columns:1fr 1fr}.inline-form .grow{grid-column:1/-1}}
+.empty{text-align:center;padding:36px 20px}
+.empty h2{font-size:22px;margin-bottom:8px}
+.empty p{color:var(--muted);max-width:46ch;margin:0 auto 16px}
+@media (max-width:520px){.bd .r{grid-template-columns:1fr auto}.bd .bar{grid-column:1/-1;order:3}}
+@media (prefers-reduced-motion:no-preference){.tile,.card{transition:border-color .15s}}
+</style>
+
+</head>
+<body>
+<noscript>This app needs JavaScript turned on.</noscript>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1 id="carName">Car Investment Tracker</h1>
+      <div class="sub">Your gain, ROI and break-even as the owner who financed the car</div>
+    </div>
+    <span id="saveChip" class="chip">Loading</span>
+  </header>
+  <div id="banner"></div>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" id="tab-overview" data-tab="overview" aria-selected="true">Overview</button>
+    <button class="tab" role="tab" id="tab-ledger" data-tab="ledger" aria-selected="false">Monthly ledger</button>
+    <button class="tab" role="tab" id="tab-extras" data-tab="extras" aria-selected="false">Extra spending</button>
+    <button class="tab" role="tab" id="tab-schedule" data-tab="schedule" aria-selected="false">Loan schedule</button>
+    <button class="tab" role="tab" id="tab-settings" data-tab="settings" aria-selected="false">Settings</button>
+  </nav>
+
+  <section class="panel" id="panel-overview"><div class="card empty"><h2>Loading your tracker</h2><p>Fetching your saved loan details.</p></div></section>
+
+  <section class="panel" id="panel-ledger" hidden>
+    <div class="toolbar">
+      <p>Each month, enter what the person paid you and the EMI you paid the bank. Extra spending flows in from the next tab.</p>
+      <button class="btn" id="fillDue" type="button">Mark every month up to today as paid</button>
+    </div>
+    <div class="scroll"><table id="ledgerTable"></table></div>
+  </section>
+
+  <section class="panel" id="panel-extras" hidden>
+    <div class="card">
+      <h2>Extra spending on the car</h2>
+      <p class="lede">Service, repairs, insurance, fuel, tyres. Anything you paid for the car beyond the down payment and EMIs counts as part of your investment.</p>
+      <form class="inline-form" id="exForm" autocomplete="off">
+        <div class="field"><label for="exDate">Date</label><input type="date" id="exDate" required></div>
+        <div class="field"><label for="exCat">Category</label><select id="exCat"></select></div>
+        <div class="field grow"><label for="exNote">What was it for</label><input type="text" id="exNote" placeholder="e.g. Brake pads and labour"></div>
+        <div class="field"><label for="exAmt">Amount (₹)</label><input type="number" id="exAmt" min="1" step="1" inputmode="numeric" required></div>
+        <button class="btn primary" type="submit">Add</button>
+      </form>
+      <div class="scroll"><table id="exTable" style="min-width:560px"></table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-schedule" hidden>
+    <div class="toolbar"><p>The bank's repayment plan, worked out from your Settings. Interest is charged monthly on the balance. The last EMI is adjusted to clear the loan.</p></div>
+    <div class="scroll"><table id="schTable"></table></div>
+  </section>
+
+  <section class="panel" id="panel-settings" hidden>
+    <div class="card">
+      <h2>Loan and agreement</h2>
+      <p class="lede">Change these any time. Everything else recalculates.</p>
+      <div class="form" id="setForm"></div>
+      <dl class="kv" style="margin-top:18px">
+        <div><dt>Loan amount (price − down payment)</dt><dd id="rdLoan">–</dd></div>
+        <div class="strong"><dt>Monthly EMI to the bank</dt><dd id="rdEmi">–</dd></div>
+        <div><dt>Total interest over the full loan</dt><dd id="rdInt">–</dd></div>
+      </dl>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>Save to GitHub</h2>
+      <p class="lede">Every change is saved to a data file in a GitHub repository, so any device you connect shows the same numbers. Use a separate private repository for the data.</p>
+      <p class="note" id="ghState" style="margin:0 0 14px"></p>
+      <div class="form">
+        <div class="field"><label for="ghOwner">GitHub username</label><input id="ghOwner" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+        <div class="field"><label for="ghRepo">Data repository name</label><input id="ghRepo" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="car-tracker-data"></div>
+        <details style="grid-column:1/-1"><summary style="cursor:pointer;font-weight:600">Advanced: file name and branch</summary>
+          <div class="form" style="margin-top:12px">
+            <div class="field"><label for="ghPath">File name</label><input id="ghPath" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="data.json"></div>
+            <div class="field"><label for="ghBranch">Branch</label><input id="ghBranch" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="main"></div>
+          </div>
+        </details>
+        <div class="field" style="grid-column:1/-1"><label for="ghToken">Access token</label><input id="ghToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_..."><span class="hint">One token, limited to the data repository, with Contents set to read and write. <a id="ghMakeToken" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create it on GitHub</a>: the name and permission are filled in. On that page choose "Only select repositories" and pick your data repository. The token stays in this browser only.</span></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px">
+        <button class="btn primary" id="ghConnect" type="button">Connect and sync</button>
+        <button class="btn" id="ghSyncNow" type="button" hidden>Sync now</button>
+        <button class="btn" id="ghLink" type="button" hidden>Copy setup link for another device</button>
+        <button class="btn danger" id="ghDisconnect" type="button" hidden>Disconnect this device</button>
+      </div>
+      <input id="ghLinkBox" type="text" readonly hidden aria-label="Setup link" style="width:100%;margin-top:12px;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 10px;font-size:12px">
+      <p class="note" id="ghMsg" role="status"></p>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>Back up and move your data</h2>
+      <p class="lede">Download a copy of your data as a file, or load one from a file. Useful as an extra backup next to GitHub.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+        <button class="btn primary" id="exportBtn" type="button">Export backup</button>
+        <label class="btn" for="importFile" style="cursor:pointer">Import backup</label>
+        <input type="file" id="importFile" accept="application/json,.json" style="position:absolute;width:1px;height:1px;opacity:0">
+        <span id="impMsg" class="note" role="status" style="margin:0"></span>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>Start over</h2>
+      <p class="lede">Removes the loan details, every ledger entry and every extra expense from this tracker.</p>
+      <button class="btn danger" id="wipe" type="button">Erase everything</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+"use strict";
+var $=function(s,r){return (r||document).querySelector(s)};
+var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+var NF=new Intl.NumberFormat('en-IN',{maximumFractionDigits:0});
+function money(v,sign){v=Math.round(v||0);var a=NF.format(Math.abs(v));if(v<0)return '−₹'+a;return (sign&&v>0?'+':'')+'₹'+a}
+function compact(v){var a=Math.abs(v),s=v<0?'−':'';if(a>=1e7)return s+'₹'+(a/1e7).toFixed(1).replace(/\.0$/,'')+'Cr';if(a>=1e5)return s+'₹'+(a/1e5).toFixed(1).replace(/\.0$/,'')+'L';if(a>=1e3)return s+'₹'+(a/1e3).toFixed(0)+'k';return s+'₹'+Math.round(a)}
+function pct(v,d){d=d==null?1:d;return (v>=0?'+':'−')+Math.abs(v*100).toFixed(d)+'%'}
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function ymParse(s){var p=String(s||'').split('-');return {y:+p[0],m:+p[1]-1}}
+function monthLabel(first,add){var o=ymParse(first),t=o.y*12+o.m+add;return MON[((t%12)+12)%12]+' '+Math.floor(t/12)}
+function monthIndexOfDate(first,dateStr){var f=ymParse(first),p=String(dateStr).split('-');return (+p[0]*12+(+p[1]-1))-(f.y*12+f.m)+1}
+function nowYM(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function todayStr(){var d=new Date();return nowYM()+'-'+String(d.getDate()).padStart(2,'0')}
+var CATS=['Service / Maintenance','Repairs','Insurance','Fuel','Tyres / Battery','Registration / Road Tax','Accessories','Fines / Challan','Other'];
+
+function blank(){var d=new Date(),t=d.getFullYear()*12+d.getMonth()+1;
+  return {v:1,example:false,s:{car:'My car',price:0,down:0,rate:9,tenure:60,firstEmi:Math.floor(t/12)+'-'+String((t%12)+1).padStart(2,'0'),monthly:0,resale:0,endValue:0,extraPm:0},led:{},ex:[]}}
+function clone(o){return JSON.parse(JSON.stringify(o))}
+function num(v){var x=parseFloat(v);return isFinite(x)?x:0}
+
+var state=null, A=null, tab='overview', mode='memory', loaded=false;
+
+/* ---------- model ---------- */
+function compute(st){
+  var s=st.s,n=Math.max(0,Math.min(120,Math.round(s.tenure))),loan=Math.max(0,s.price-s.down),r=s.rate/1200;
+  var emi=(n>0&&loan>0)?Math.round(r===0?loan/n:loan*r/(1-Math.pow(1+r,-n))):0;
+  var sch=[],bal=loan,i;
+  for(i=1;i<=n;i++){var it=Math.round(bal*r),pr=emi-it,pay=emi;if(i===n||pr>bal){pr=bal;pay=bal+it}var cl=bal-pr;sch.push({i:i,open:bal,emi:pay,int:it,prin:pr,close:cl});bal=cl}
+  var totalInt=sch.reduce(function(a,x){return a+x.int},0);
+  var rec=0,emiPaid=0,prinPaid=0,last=0,recv={},emv={};
+  for(i=1;i<=n;i++){var e=st.led[i];if(!e||(e.r==null&&e.e==null))continue;last=i;var rr=e.r||0,ee=e.e||0;recv[i]=rr;emv[i]=ee;rec+=rr;emiPaid+=ee;prinPaid+=Math.max(0,ee-sch[i-1].int)}
+  var intPaid=emiPaid-prinPaid;
+  var exBy={},exTotal=0,byCat={};
+  st.ex.forEach(function(x){var idx=Math.max(0,Math.min(n,monthIndexOfDate(s.firstEmi,x.d)));exBy[idx]=(exBy[idx]||0)+x.a;exTotal+=x.a;byCat[x.c]=(byCat[x.c]||0)+x.a});
+  var outstanding=Math.max(0,loan-prinPaid);
+  var invested=s.down+emiPaid+exTotal, netCash=rec-invested, equity=s.resale-outstanding, profit=netCash+equity;
+  var roi=invested>0?profit/invested:null;
+  var T=last;
+  var cum=[-s.down-(exBy[0]||0)],k;
+  for(k=1;k<=n;k++){
+    var pe;
+    if(k<=T){pe=(recv[k]||0)-(emv[k]||0)-(exBy[k]||0)}
+    else{pe=s.monthly-sch[k-1].emi-(exBy[k]>0?exBy[k]:s.extraPm)}
+    cum.push(cum[k-1]+pe);
+  }
+  var irrA=null;
+  if(T>=3){
+    var f=[cum[0]];for(k=1;k<=T;k++)f.push(cum[k]-cum[k-1]);
+    var later=0;for(k=T+1;k<=n;k++)later+=(exBy[k]||0);
+    f[T]+=equity-later;
+    var m=irr(f);if(m!=null){var a=Math.pow(1+m,12)-1;if(isFinite(a)&&a<10&&a>-0.99)irrA=a}
+  }
+  var remaining=Math.max(0,n-T),projEmis=emiPaid,projExtras=exTotal,k2;
+  for(k2=T+1;k2<=n;k2++){projEmis+=sch[k2-1].emi;if(!(exBy[k2]>0))projExtras+=s.extraPm}
+  var projRec=rec+s.monthly*remaining,projInvested=s.down+projEmis+projExtras,projCash=projRec-projInvested,projProfit=projCash+s.endValue;
+  var be=null;for(k=0;k<=n;k++){if(cum[k]>=0){be=k;break}}
+  var invCum=[s.down+(exBy[0]||0)],recCum=[0],late=0;
+  for(k=1;k<=T;k++){invCum.push(invCum[k-1]+(emv[k]||0)+(exBy[k]||0));recCum.push(recCum[k-1]+(recv[k]||0))}
+  for(k=T+1;k<=n;k++)late+=(exBy[k]||0);
+  invCum[T]+=late;
+  return {s:s,n:n,loan:loan,emi:emi,sch:sch,totalInt:totalInt,rec:rec,emiPaid:emiPaid,prinPaid:prinPaid,intPaid:intPaid,exTotal:exTotal,exBy:exBy,byCat:byCat,
+    outstanding:outstanding,invested:invested,netCash:netCash,equity:equity,profit:profit,roi:roi,irr:irrA,T:T,cum:cum,
+    projRec:projRec,projInvested:projInvested,projCash:projCash,projProfit:projProfit,projRoi:projInvested>0?projProfit/projInvested:null,be:be,
+    ready:s.price>0&&n>0&&loan>0,recv:recv,emv:emv,invCum:invCum,recCum:recCum};
+}
+function irr(f){
+  function npv(m){var t=0;for(var i=0;i<f.length;i++)t+=f[i]/Math.pow(1+m,i);return t}
+  var lo=-0.5,hi=1,a=npv(lo),b=npv(hi);if(!isFinite(a)||!isFinite(b)||a*b>0)return null;
+  for(var k=0;k<100;k++){var mid=(lo+hi)/2,c=npv(mid);if(a*c<=0){hi=mid;b=c}else{lo=mid;a=c}}
+  return (lo+hi)/2;
+}
+
+/* ---------- persistence: GitHub repository file, with a copy kept in this browser ---------- */
+var dirty=false, saving=false, timer=null, LS='car-investment-tracker-v1', LSG='car-investment-github-v1';
+var GH=null, ghSha=null;
+function chip(kind,text){var c=$('#saveChip');c.className='chip'+(kind?' '+kind:'');c.textContent=text}
+function touch(){dirty=true;clearTimeout(timer);timer=setTimeout(flush,800);chip('warn','Saving')}
+function cacheSave(){try{localStorage.setItem(LS,JSON.stringify(state))}catch(e){}}
+function normalize(d){var b=blank();d.s=Object.assign(b.s,d.s||{});d.led=d.led||{};d.ex=d.ex||[];d.example=!!d.example;d.v=1;return d}
+function b64enc(s){return btoa(unescape(encodeURIComponent(s)))}
+function b64dec(s){return decodeURIComponent(escape(atob(String(s).replace(/\s/g,''))))}
+function ghUrl(){return 'https://api.github.com/repos/'+encodeURIComponent(GH.owner)+'/'+encodeURIComponent(GH.repo)+'/contents/'+GH.path.split('/').map(encodeURIComponent).join('/')}
+function ghHeaders(){return {'Authorization':'Bearer '+GH.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}}
+function ghErr(status,msg){var e=new Error(msg||('GitHub '+status));e.status=status;return e}
+async function ghGet(){
+  var res=await fetch(ghUrl()+'?ref='+encodeURIComponent(GH.branch),{headers:ghHeaders(),cache:'no-store'});
+  if(res.status===404){
+    var rr=await fetch('https://api.github.com/repos/'+encodeURIComponent(GH.owner)+'/'+encodeURIComponent(GH.repo),{headers:ghHeaders(),cache:'no-store'});
+    if(rr.ok)return {missing:true};
+    throw ghErr(404);
+  }
+  if(!res.ok)throw ghErr(res.status);
+  var j=await res.json(),data;
+  try{
+    var txt=b64dec(j.content||'');
+    data=txt.trim()?JSON.parse(txt):{};
+    if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('shape');
+  }catch(pe){var ie=new Error('invalid json');ie.invalidJson=true;throw ie}
+  return {sha:j.sha,data:data};
+}
+async function ghPut(){
+  var body={message:'Update car tracker data',content:b64enc(JSON.stringify(state,null,1)),branch:GH.branch};
+  if(ghSha)body.sha=ghSha;
+  var res=await fetch(ghUrl(),{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},ghHeaders()),body:JSON.stringify(body)});
+  if(res.status===409||res.status===422){var c=ghErr(res.status,'conflict');c.conflict=true;throw c}
+  if(!res.ok)throw ghErr(res.status);
+  var j=await res.json();ghSha=j.content.sha;
+}
+function ghErrorText(e){
+  if(e&&e.invalidJson)return 'The data file in the repository is not valid. Open it on GitHub, replace everything in it with {} and commit, then try again.';
+  if(e&&e.status===401)return 'GitHub rejected the token. Check that it is copied correctly and has not expired.';
+  if(e&&e.status===403)return 'The token is not allowed to do this, or GitHub is limiting requests. It needs Contents: read and write on this repository.';
+  if(e&&e.status===404)return 'Repository or branch not found, or the token has no access to that repository.';
+  if(e&&e.conflict)return 'The file changed on GitHub while saving.';
+  return 'Could not reach GitHub ('+((e&&(e.name+': '+e.message))||'network error')+'). Check your connection, and turn off any ad blocker or VPN that blocks api.github.com.';
+}
+function cleanToken(t){return String(t||'').replace(/[^\x21-\x7E]/g,'')}
+async function ghPull(){
+  var r=await ghGet();
+  if(r.missing){ghSha=null;return 'missing'}
+  ghSha=r.sha;var d=normalize(r.data);
+  if(!loaded||JSON.stringify(d)!==JSON.stringify(state)){state=d;loaded=true;rebuildAll();cacheSave()}
+  loaded=true;return 'ok';
+}
+async function flush(){
+  if(saving||!dirty)return;saving=true;dirty=false;var failed=false;
+  try{
+    if(mode==='gh'){
+      try{await ghPut();cacheSave();chip('ok','Saved to GitHub')}
+      catch(e){
+        if(e.conflict){
+          var r=await ghGet();
+          if(!r.missing){ghSha=r.sha;state=normalize(r.data);rebuildAll();cacheSave();chip('warn','Another device saved first. Reloaded; re-enter your last change');}
+          else{ghSha=null;dirty=true}
+        }else throw e;
+      }
+    }else{
+      try{localStorage.setItem(LS,JSON.stringify(state));chip('warn','Saved on this device only')}catch(e){chip('warn','Not saved: private window')}
+    }
+  }catch(e){
+    failed=true;dirty=true;cacheSave();chip('bad','Not saved to GitHub. Retrying');
+    clearTimeout(timer);timer=setTimeout(flush,15000);
+  }
+  saving=false;if(dirty&&!failed)flush();
+}
+function loadLocal(){
+  var raw=null;try{raw=localStorage.getItem(LS)}catch(e){}
+  state=raw?normalize(JSON.parse(raw)):blank();loaded=true;rebuildAll();
+}
+async function init(){
+  var viaLink=false;
+  try{
+    var hm=location.hash.match(/[#&]setup=([A-Za-z0-9_-]+)/);
+    if(hm){
+      var c=JSON.parse(b64dec(hm[1].replace(/-/g,'+').replace(/_/g,'/')));
+      if(c&&c.owner&&c.repo&&c.token){localStorage.setItem(LSG,JSON.stringify({owner:String(c.owner),repo:String(c.repo),path:String(c.path||'data.json'),branch:String(c.branch||'main'),token:cleanToken(c.token)}));viaLink=true}
+      history.replaceState(null,'',location.pathname+location.search);
+    }
+  }catch(e){}
+  try{var g=localStorage.getItem(LSG);GH=g?JSON.parse(g):null}catch(e){GH=null}
+  if(GH&&GH.owner&&GH.repo&&GH.token){
+    mode='gh';chip('','Syncing');
+    try{
+      var st=await ghPull();
+      if(st==='missing'){loadLocal();if(state.s.price>0){touch()}else chip('ok','Connected. Saves on your first entry')}
+      else chip('ok','Synced with GitHub');
+      if(viaLink)gmsg('This device is now connected to GitHub using your setup link.');
+    }catch(e){loadLocal();chip('bad',viaLink?'Could not connect with that setup link':'Offline: showing the last copy on this device')}
+  }else{mode='local';loadLocal();chip('warn','Saved on this device only')}
+  syncCard();
+}
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden||mode!=='gh'||!loaded||dirty||saving)return;
+  ghPull().then(function(){chip('ok','Synced with GitHub')}).catch(function(){chip('bad','Could not reach GitHub')});
+});
+
+/* ---------- GitHub connection card ---------- */
+function val(id){return ($(id).value||'').trim()}
+function gmsg(t){$('#ghMsg').textContent=t}
+function guessOwner(){var m=location.hostname.match(/^([^.]+)\.github\.io$/i);return m?m[1]:''}
+function updateTokenLink(){
+  var o=val('#ghOwner'),u='https://github.com/settings/personal-access-tokens/new?name=Car+tracker&description=Saves+the+car+tracker+data+file&contents=write&expires_in=366'+(o?'&target_name='+encodeURIComponent(o):'');
+  $('#ghMakeToken').href=u;
+}
+function setupUrl(){
+  var c=JSON.stringify({owner:GH.owner,repo:GH.repo,path:GH.path,branch:GH.branch,token:GH.token});
+  return location.origin+location.pathname+'#setup='+b64enc(c).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function syncCard(){
+  if(!$('#ghOwner'))return;
+  $('#ghOwner').value=GH?GH.owner:guessOwner();$('#ghRepo').value=GH?GH.repo:'car-tracker-data';
+  $('#ghPath').value=GH?GH.path:'data.json';$('#ghBranch').value=GH?GH.branch:'main';
+  $('#ghToken').value='';$('#ghToken').placeholder=GH?'Saved on this device. Leave blank to keep it':'github_pat_...';
+  $('#ghSyncNow').hidden=!GH;$('#ghDisconnect').hidden=!GH;$('#ghLink').hidden=!GH;$('#ghLinkBox').hidden=true;updateTokenLink();
+  $('#ghState').textContent=GH?'Connected to '+GH.owner+'/'+GH.repo+' ('+GH.path+')':'Not connected. Data is saved in this browser only.';
+}
+$('#ghOwner').addEventListener('input',updateTokenLink);
+$('#ghLink').addEventListener('click',function(){
+  if(!GH)return;var u=setupUrl(),box=$('#ghLinkBox');box.value=u;box.hidden=false;
+  var warn=' Open it on your other device, then delete the message you sent it in. Anyone with this link can read and change your data.';
+  function manual(){box.focus();box.select();gmsg('Copy the link in the box below.'+warn)}
+  try{navigator.clipboard.writeText(u).then(function(){gmsg('Setup link copied.'+warn)},manual)}catch(e){manual()}
+});
+$('#ghConnect').addEventListener('click',async function(){
+  var cfg={owner:val('#ghOwner'),repo:val('#ghRepo'),path:val('#ghPath')||'data.json',branch:val('#ghBranch')||'main',token:cleanToken(val('#ghToken')||(GH&&GH.token)||'')};
+  if(!cfg.owner||!cfg.repo||!cfg.token){gmsg('Fill in your GitHub username, the data repository and the token.');return}
+  var prev=GH,prevMode=mode;GH=cfg;gmsg('Connecting...');
+  try{
+    var r=await ghGet();
+    try{localStorage.setItem(LSG,JSON.stringify(cfg))}catch(e){gmsg('This browser blocked saving the connection. Turn off private browsing and try again.');GH=prev;return}
+    mode='gh';
+    if(r.missing){ghSha=null;dirty=true;await flush();gmsg('Connected. Your current data was saved to '+cfg.path+' in the repository.')}
+    else{ghSha=r.sha;state=normalize(r.data);loaded=true;rebuildAll();cacheSave();chip('ok','Synced with GitHub');gmsg('Connected. Loaded the data already stored in the repository.')}
+    syncCard();
+  }catch(e){GH=prev;mode=prevMode;gmsg(ghErrorText(e))}
+});
+$('#ghSyncNow').addEventListener('click',async function(){
+  if(!GH)return;gmsg('Syncing...');
+  try{if(dirty)await flush();var s=await ghPull();gmsg(s==='missing'?'The data file does not exist yet. It is created on your next change.':'Up to date.');chip('ok','Synced with GitHub')}
+  catch(e){gmsg(ghErrorText(e))}
+});
+$('#ghDisconnect').addEventListener('click',function(){
+  try{localStorage.removeItem(LSG)}catch(e){}
+  GH=null;ghSha=null;mode='local';cacheSave();chip('warn','Saved on this device only');syncCard();gmsg('Disconnected. The data stays in this browser and in the repository.');
+});
+
+/* ---------- header, banner ---------- */
+function renderHeader(){
+  $('#carName').textContent=state.s.car||'Car Investment Tracker';
+  document.title=(state.s.car?state.s.car+' ':'')+'Car Investment Tracker';
+  var b=$('#banner');
+  if(state.example){b.innerHTML='<div class="banner"><span>You are looking at example numbers. Replace them in Settings, or clear them to start with your own car.</span><button class="btn small" id="clearEx" type="button">Clear examples</button></div>'}
+  else b.innerHTML='';
+}
+
+/* ---------- overview ---------- */
+function signClass(v){return v>0?'pos':v<0?'neg':''}
+function renderOverview(){
+  var p=$('#panel-overview');
+  if(!A.ready){
+    p.innerHTML='<div class="card empty"><h2>Set up your car loan</h2><p>Enter the car price, your down payment, the loan terms and what the other person pays you each month. This page then shows your gain, return and break-even.</p><button class="btn primary" data-go="settings" type="button">Enter loan details</button></div>';return}
+  var s=A.s, h='';
+  var cover=s.monthly-A.emi;
+  h+='<div class="stack">';
+  h+='<div class="hero"><div class="k">Your gain on this car so far</div><div class="big">'+money(A.profit,true)+'</div>';
+  h+='<div class="row"><span>'+(A.roi==null?'No spending yet':pct(A.roi)+' return on '+money(A.invested))+'</span>';
+  if(A.irr!=null)h+='<span>'+pct(A.irr)+' a year (annualised)</span>';
+  h+='</div><div class="eq"><span>Received '+money(A.rec)+'</span><span>+ Car equity '+money(A.equity)+'</span><span>− Invested '+money(A.invested)+'</span></div></div>';
+  h+='<div class="tiles">';
+  h+=tile('You have put in',money(A.invested),'Down payment, EMIs and extras','');
+  h+=tile('Received so far',money(A.rec),A.T?'Over '+A.T+' recorded month'+(A.T>1?'s':''):'Nothing recorded yet','');
+  h+=tile('Net cash position',money(A.netCash,true),A.netCash<0?'Still to recover in cash':'Recovered in cash',signClass(A.netCash));
+  h+=tile('Car equity',money(A.equity,true),'Worth '+money(s.resale)+' less loan owed '+money(A.outstanding),signClass(A.equity));
+  h+='</div>';
+  h+='<div class="card"><h2>Cash position over the loan</h2><p class="lede">Everything received minus everything you have paid out, starting from the down payment. It crosses zero when your cash is fully back.</p>'+chart()+'<div class="legend"><span><i></i>Recorded</span><span><i class="d"></i>Projected at the agreed monthly amount</span></div></div>';
+  h+='<div class="cols">';
+  h+='<div class="card"><h2>How your gain is built</h2><p class="lede">Money you put in goes down. Money received and the car\'s equity bring it back up. What is left is your gain.</p>'+waterfall()+'</div>';
+  h+='<div class="card"><h2>Invested and received over time</h2><p class="lede">Running totals month by month. The gap between the lines is your net cash position.</p>'+lineInvRec()+'<div class="legend"><span><b style="background:var(--c-prin)"></b>Invested</span><span><b style="background:var(--accent)"></b>Received</span></div></div>';
+  h+='</div><div class="cols">';
+  h+='<div class="card"><h2>Money in and out each month</h2><p class="lede">What the person paid you against the EMI and extra spending you paid. Last 24 recorded months.</p>'+monthBars()+'<div class="legend"><span><b style="background:var(--accent)"></b>Received</span><span><b style="background:var(--c-int)"></b>Spent (EMI and extras)</span></div></div>';
+  h+='<div class="card"><h2>Where the running costs go</h2><p class="lede">Money that does not come back: loan interest and extra spending. The down payment and loan principal stay in the car.</p>'+costBars()+'</div>';
+  h+='</div>';
+  h+='<div class="cols">';
+  h+='<div class="card"><h2>Where your money went</h2><p class="lede">Share of the '+money(A.invested)+' you have invested.</p>'+breakdown()+'</div>';
+  h+='<div class="card"><h2>If it carries on as planned</h2><p class="lede">Recorded months plus the agreed amounts for the rest of the '+A.n+'-month loan.</p><dl class="kv">';
+  h+=kv('Total you will have put in',money(A.projInvested));
+  h+=kv('Total received from the person',money(A.projRec));
+  h+=kv('Car value when the loan ends',money(s.endValue));
+  h+='<div class="strong"><dt>Projected profit</dt><dd class="'+signClass(A.projProfit)+'">'+money(A.projProfit,true)+'</dd></div>';
+  h+=kv('Projected return',A.projRoi==null?'–':pct(A.projRoi));
+  h+=kv('Cash break-even',A.be==null?'Not within the loan':(A.be===0?'Already there':monthLabel(s.firstEmi,A.be-1)+' (month '+A.be+')'));
+  h+='</dl>';
+  if(cover>=0)h+='<p class="note">The agreed '+money(s.monthly)+' covers the EMI of '+money(A.emi)+' and leaves '+money(cover)+' a month toward upkeep.</p>';
+  else h+='<p class="note warn">The agreed '+money(s.monthly)+' is '+money(-cover)+' short of the EMI of '+money(A.emi)+'. You top up the difference every month.</p>';
+  if(A.be==null)h+='<p class="note warn">Cash alone does not pay you back within the loan term. Your return then depends on the resale value of the car.</p>';
+  h+='</div></div></div>';
+  p.innerHTML=h;
+}
+function tile(k,v,n,cls){return '<div class="tile"><div class="k">'+k+'</div><div class="v '+cls+'">'+v+'</div><div class="n">'+n+'</div></div>'}
+function kv(a,b){return '<div><dt>'+a+'</dt><dd>'+b+'</dd></div>'}
+function breakdown(){
+  var rows=[['Down payment',A.s.down,'var(--c-down)'],['EMI principal',A.prinPaid,'var(--c-prin)'],['EMI interest',A.intPaid,'var(--c-int)'],['Extra spending',A.exTotal,'var(--c-extra)']];
+  var tot=A.invested||1,h='<div class="bd">';
+  rows.forEach(function(r){var w=Math.max(0,r[1]/tot*100);h+='<div class="r"><span>'+r[0]+'</span><div class="bar"><b style="width:'+w.toFixed(1)+'%;background:'+r[2]+'"></b></div><span class="amt">'+money(r[1])+'<span class="pc">'+Math.round(w)+'%</span></span></div>'});
+  h+='<div class="tot"><span>Total invested</span><span>'+money(A.invested)+'</span></div></div>';
+  return h;
+}
+function niceStep(raw){var e=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/e;return (f<=1?1:f<=2?2:f<=5?5:10)*e}
+function chart(){
+  var cum=A.cum,n=A.n,T=A.T,W=cwid(false),H=W<500?260:300,ml=56,mr=14,mt=18,mb=34;
+  var lo=Math.min.apply(null,cum.concat([0])),hi=Math.max.apply(null,cum.concat([0]));
+  if(hi===lo)hi=lo+1;
+  var step=niceStep((hi-lo)/5),y0=Math.floor(lo/step)*step,y1=Math.ceil(hi/step)*step;
+  var X=function(i){return ml+(W-ml-mr)*i/n},Y=function(v){return mt+(H-mt-mb)*(1-(v-y0)/(y1-y0))};
+  var g='',v,i;
+  for(v=y0;v<=y1+step/2;v+=step){var yy=Y(v).toFixed(1);g+='<line class="grid" x1="'+ml+'" x2="'+(W-mr)+'" y1="'+yy+'" y2="'+yy+'"/><text class="ax" x="'+(ml-8)+'" y="'+(+yy+4)+'" text-anchor="end">'+compact(v)+'</text>'}
+  g+='<line class="zero" x1="'+ml+'" x2="'+(W-mr)+'" y1="'+Y(0).toFixed(1)+'" y2="'+Y(0).toFixed(1)+'"/>';
+  var maxT=Math.max(2,Math.floor((W-ml-mr)/76)),stride=Math.max(1,Math.ceil(Math.floor(n/12)/Math.max(1,maxT-1)))*12;
+  var xt=[0];for(i=stride;i<=n;i+=stride)xt.push(i);
+  if(n-xt[xt.length-1]>=stride/2&&(W-ml-mr)>=420)xt.push(n);
+  xt.forEach(function(t){var lab=t===0?'Start':monthLabel(A.s.firstEmi,t-1);g+='<text class="ax" x="'+X(t).toFixed(1)+'" y="'+(H-10)+'" text-anchor="'+(t===0?'start':t===n?'end':'middle')+'">'+lab+'</text>'});
+  var pa=[],pp=[];
+  for(i=0;i<=T;i++)pa.push(X(i).toFixed(1)+','+Y(cum[i]).toFixed(1));
+  for(i=T;i<=n;i++)pp.push(X(i).toFixed(1)+','+Y(cum[i]).toFixed(1));
+  g+='<polyline class="proj" points="'+pp.join(' ')+'"/>';
+  if(T>0)g+='<polyline class="actual" points="'+pa.join(' ')+'"/>';
+  g+='<circle class="dot" cx="'+X(T).toFixed(1)+'" cy="'+Y(cum[T]).toFixed(1)+'" r="5"/>';
+  g+='<text class="lbl" x="'+(X(T)+(T>n*0.7?-9:9)).toFixed(1)+'" y="'+(Y(cum[T])+(cum[T]>=0?-10:18)).toFixed(1)+'" text-anchor="'+(T>n*0.7?'end':'start')+'">'+(T?'Now ':'Start ')+compact(cum[T])+'</text>';
+  if(A.be!=null&&A.be>0){g+='<circle class="mark" cx="'+X(A.be).toFixed(1)+'" cy="'+Y(0).toFixed(1)+'" r="6"/><text class="lbl" x="'+(X(A.be)+(A.be>n*0.75?-10:10)).toFixed(1)+'" y="'+(Y(0)-12).toFixed(1)+'" text-anchor="'+(A.be>n*0.75?'end':'start')+'">Break-even '+monthLabel(A.s.firstEmi,A.be-1)+'</text>'}
+  g+='<text class="lbl" x="'+(W-mr)+'" y="'+(Y(cum[n])+(cum[n]>=cum[n-1]?-10:18)).toFixed(1)+'" text-anchor="end">End '+compact(cum[n])+'</text>';
+  var lab='Cash position from '+compact(cum[0])+' at the start to '+compact(cum[n])+' at the end of the loan.';
+  return '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(lab)+'">'+g+'</svg>';
+}
+
+
+function note(m){return '<p class="note" style="margin:0">'+m+'</p>'}
+function yAxis(lo,hi,W,H,ml,mr,mt,mb){
+  if(hi<=lo)hi=lo+1;
+  var step=niceStep((hi-lo)/5),y0=Math.floor(lo/step)*step,y1=Math.ceil(hi/step)*step;
+  var Y=function(v){return mt+(H-mt-mb)*(1-(v-y0)/(y1-y0))},g='',v;
+  for(v=y0;v<=y1+step/2;v+=step){var yy=Y(v).toFixed(1);g+='<line class="grid" x1="'+ml+'" x2="'+(W-mr)+'" y1="'+yy+'" y2="'+yy+'"/><text class="ax" x="'+(ml-8)+'" y="'+(+yy+4)+'" text-anchor="end">'+compact(v)+'</text>'}
+  if(y0<0&&y1>0)g+='<line class="zero" x1="'+ml+'" x2="'+(W-mr)+'" y1="'+Y(0).toFixed(1)+'" y2="'+Y(0).toFixed(1)+'"/>';
+  return {Y:Y,g:g};
+}
+function cwid(half){
+  var w=(document.querySelector('.wrap')||document.body).clientWidth||720,inner=half&&w>=856?(w-16)/2-42:w-42;
+  return Math.max(280,Math.min(760,Math.round(inner)));
+}
+function svgWrap(g,label,W,H){return '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(label)+'">'+g+'</svg>'}
+function waterfall(){
+  var I=A.invested,R=A.rec,E=A.equity,P=A.profit,W=cwid(true),H=290,ml=56,mr=14,mt=28,mb=34;
+  var ax=yAxis(Math.min(0,-I,-I+R,P),Math.max(0,-I,-I+R,P),W,H,ml,mr,mt,mb),Y=ax.Y,g=ax.g;
+  var steps=[['Invested',0,-I,'b-inv',compact(-I)],['Received',-I,-I+R,'b-rec','+'+compact(R)],['Equity',-I+R,P,'b-eq',(E>=0?'+':'')+compact(E)],['Gain',0,P,P>=0?'b-gain':'b-loss',(P>=0?'+':'')+compact(P)]];
+  var band=(W-ml-mr)/4,bw=Math.min(96,band*0.55);
+  steps.forEach(function(s,i){
+    var cx=ml+band*(i+.5),y1=Y(s[1]),y2=Y(s[2]),top=Math.min(y1,y2),h=Math.max(2,Math.abs(y2-y1));
+    g+='<rect class="'+s[3]+'" x="'+(cx-bw/2).toFixed(1)+'" y="'+top.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="3"/>';
+    g+='<text class="lbl" x="'+cx.toFixed(1)+'" y="'+(top-7).toFixed(1)+'" text-anchor="middle">'+s[4]+'</text>';
+    g+='<text class="ax" x="'+cx.toFixed(1)+'" y="'+(H-10)+'" text-anchor="middle">'+s[0]+'</text>';
+    if(i<2){var nx=ml+band*(i+1.5);g+='<line class="conn" x1="'+(cx+bw/2).toFixed(1)+'" x2="'+(nx-bw/2).toFixed(1)+'" y1="'+Y(s[2]).toFixed(1)+'" y2="'+Y(s[2]).toFixed(1)+'"/>'}
+  });
+  return svgWrap(g,'Gain built from '+compact(I)+' invested, '+compact(R)+' received and '+compact(E)+' car equity, giving '+compact(P),W,H);
+}
+function lineInvRec(){
+  var T=A.T;if(T<2)return note('Record at least two months in the ledger to see this trend.');
+  var W=cwid(true),H=290,ml=56,mr=14,mt=26,mb=34,inv=A.invCum,rc=A.recCum;
+  var ax=yAxis(0,Math.max(Math.max.apply(null,inv),Math.max.apply(null,rc)),W,H,ml,mr,mt,mb),Y=ax.Y,g=ax.g;
+  var X=function(i){return ml+(W-ml-mr)*i/T},i,pi=[],pr=[];
+  for(i=0;i<=T;i++){pi.push(X(i).toFixed(1)+','+Y(inv[i]).toFixed(1));pr.push(X(i).toFixed(1)+','+Y(rc[i]).toFixed(1))}
+  var every=Math.max(1,Math.ceil(T/Math.max(2,Math.floor((W-ml-mr)/78))));
+  for(i=0;i<=T;i+=every)g+='<text class="ax" x="'+X(i).toFixed(1)+'" y="'+(H-10)+'" text-anchor="'+(i===0?'start':(X(i)>W-mr-34?'end':'middle'))+'">'+(i===0?'Start':monthLabel(A.s.firstEmi,i-1))+'</text>';
+  g+='<polyline class="s-inv" points="'+pi.join(' ')+'"/><polyline class="s-rec" points="'+pr.join(' ')+'"/>';
+  g+='<circle class="d-inv" cx="'+X(T).toFixed(1)+'" cy="'+Y(inv[T]).toFixed(1)+'" r="5"/><circle class="d-rec" cx="'+X(T).toFixed(1)+'" cy="'+Y(rc[T]).toFixed(1)+'" r="5"/>';
+  var invUp=inv[T]>=rc[T],lowOff=Math.abs(Y(inv[T])-Y(rc[T]))>=26?-10:20;
+  g+='<text class="lbl" x="'+(W-mr)+'" y="'+(Y(inv[T])+(invUp?-10:lowOff)).toFixed(1)+'" text-anchor="end">Invested '+compact(inv[T])+'</text>';
+  g+='<text class="lbl" x="'+(W-mr)+'" y="'+(Y(rc[T])+(invUp?lowOff:-10)).toFixed(1)+'" text-anchor="end">Received '+compact(rc[T])+'</text>';
+  return svgWrap(g,'Cumulative invested reaches '+compact(inv[T])+' and cumulative received reaches '+compact(rc[T])+' after '+T+' months',W,H);
+}
+function monthBars(){
+  var T=A.T;if(T<1)return note('Record a month in the ledger to see money in and out.');
+  var from=Math.max(1,T-23),cnt=T-from+1,W=cwid(true),H=290,ml=56,mr=14,mt=18,mb=34,ins=[],outs=[],mx=0,i;
+  for(i=from;i<=T;i++){var a=A.recv[i]||0,b=(A.emv[i]||0)+(A.exBy[i]||0);ins.push(a);outs.push(b);mx=Math.max(mx,a,b)}
+  var ax=yAxis(0,mx,W,H,ml,mr,mt,mb),Y=ax.Y,g=ax.g,band=(W-ml-mr)/cnt,bw=Math.min(24,band*0.38),every=Math.ceil(cnt/Math.max(2,Math.floor((W-ml-mr)/78))),y0=Y(0);
+  for(i=0;i<cnt;i++){
+    var cx=ml+band*(i+.5);
+    g+='<rect class="b-rec" x="'+(cx-bw-1).toFixed(1)+'" y="'+Y(ins[i]).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(0,y0-Y(ins[i])).toFixed(1)+'" rx="2"/>';
+    g+='<rect class="b-out" x="'+(cx+1).toFixed(1)+'" y="'+Y(outs[i]).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(0,y0-Y(outs[i])).toFixed(1)+'" rx="2"/>';
+    if(i%every===0)g+='<text class="ax" x="'+cx.toFixed(1)+'" y="'+(H-10)+'" text-anchor="middle">'+monthLabel(A.s.firstEmi,from+i-1)+'</text>';
+  }
+  return svgWrap(g,'Money received and money spent for each of the last '+cnt+' recorded months',W,H);
+}
+function costBars(){
+  var rows=[['Loan interest paid',A.intPaid,'var(--c-int)']];
+  Object.keys(A.byCat).forEach(function(c){rows.push([esc(c),A.byCat[c],'var(--c-extra)'])});
+  rows=rows.filter(function(r){return r[1]>0}).sort(function(a,b){return b[1]-a[1]});
+  var tot=rows.reduce(function(a,r){return a+r[1]},0);
+  if(!tot)return note('No interest or extra spending recorded yet.');
+  var mx=rows[0][1],h='<div class="bd">';
+  rows.forEach(function(r){h+='<div class="r"><span>'+r[0]+'</span><div class="bar"><b style="width:'+(r[1]/mx*100).toFixed(1)+'%;background:'+r[2]+'"></b></div><span class="amt">'+money(r[1])+'<span class="pc">'+Math.round(r[1]/tot*100)+'%</span></span></div>'});
+  return h+'<div class="tot"><span>Total running costs</span><span>'+money(tot)+'</span></div></div>';
+}
+
+/* ---------- ledger ---------- */
+function buildLedger(){
+  var t=$('#ledgerTable');
+  if(!A.ready){t.innerHTML='<tbody><tr><td style="text-align:left;white-space:normal;padding:20px">Enter your loan details in Settings to see the monthly ledger.</td></tr></tbody>';return}
+  var h='<thead><tr><th>#</th><th>Month</th><th>Scheduled EMI</th><th>Received</th><th>EMI paid</th><th>Extras</th><th>Net</th><th>Running total</th><th>EMI status</th><th></th></tr></thead><tbody>';
+  A.sch.forEach(function(r){var i=r.i,e=state.led[i]||{};
+    h+='<tr id="row-'+i+'"><td>'+i+'</td><td>'+monthLabel(state.s.firstEmi,i-1)+'</td><td>'+money(r.emi)+'</td>'+
+    '<td><input type="number" min="0" step="1" inputmode="numeric" id="r-'+i+'" data-led="r" data-i="'+i+'" aria-label="Received in '+monthLabel(state.s.firstEmi,i-1)+'" value="'+(e.r==null?'':e.r)+'"></td>'+
+    '<td><input type="number" min="0" step="1" inputmode="numeric" id="e-'+i+'" data-led="e" data-i="'+i+'" aria-label="EMI paid in '+monthLabel(state.s.firstEmi,i-1)+'" value="'+(e.e==null?'':e.e)+'"></td>'+
+    '<td id="lx-'+i+'"></td><td id="ln-'+i+'"></td><td id="lc-'+i+'"></td><td id="ls-'+i+'"></td>'+
+    '<td><button class="btn small" type="button" data-paid="'+i+'" title="Fill this month as paid on plan">Paid</button></td></tr>'}
+  );
+  h+='</tbody>';t.innerHTML=h;
+}
+function updateLedgerCells(){
+  if(!A.ready)return;
+  var cur=monthIndexOfDate(state.s.firstEmi,todayStr()),run=0;
+  A.sch.forEach(function(r){var i=r.i,e=state.led[i],has=e&&(e.r!=null||e.e!=null);
+    var ex=A.exBy[i]||0,net=has||ex?((e&&e.r||0)-(e&&e.e||0)-ex):0;run+=net;
+    var st,cls='';
+    if(e&&e.e>0){if(e.e>=r.emi){st='Paid';cls='ok'}else{st='Part paid';cls='warn'}}
+    else if(i<=cur){st='Pending';cls='warn'}else{st='Upcoming';cls=''}
+    $('#lx-'+i).textContent=ex?money(ex):'–';
+    $('#ln-'+i).innerHTML=(has||ex)?'<span class="'+signClass(net)+'">'+money(net,true)+'</span>':'–';
+    $('#lc-'+i).textContent=(has||ex||i<=A.T)?money(run,true):'–';
+    $('#ls-'+i).innerHTML='<span class="pill '+cls+'">'+st+'</span>';
+    $('#row-'+i).className=i===cur?'now':'';
+    var ri=$('#r-'+i),ei=$('#e-'+i);
+    if(document.activeElement!==ri)ri.value=(e&&e.r!=null)?e.r:'';
+    if(document.activeElement!==ei)ei.value=(e&&e.e!=null)?e.e:'';
+  });
+}
+
+/* ---------- extras ---------- */
+function buildExtras(){
+  var sel=$('#exCat');if(!sel.options.length)sel.innerHTML=CATS.map(function(c){return '<option>'+esc(c)+'</option>'}).join('');
+  var d=$('#exDate');if(!d.value)d.value=todayStr();
+  renderExtras();
+}
+function renderExtras(){
+  var t=$('#exTable'),list=state.ex.slice().sort(function(a,b){return a.d<b.d?1:a.d>b.d?-1:0});
+  if(!list.length){t.innerHTML='<tbody><tr><td style="text-align:left;white-space:normal;padding:20px">No extra spending recorded yet. Add the first item above and it will count toward your investment.</td></tr></tbody>';return}
+  var tot=list.reduce(function(a,x){return a+x.a},0);
+  t.innerHTML='<thead><tr><th>Date</th><th>Category</th><th style="text-align:left">Note</th><th>Amount</th><th></th></tr></thead><tbody>'+
+    list.map(function(x){return '<tr><td>'+esc(x.d)+'</td><td style="text-align:left">'+esc(x.c)+'</td><td style="text-align:left;white-space:normal">'+esc(x.n)+'</td><td>'+money(x.a)+'</td><td><button class="btn small" type="button" data-del="'+esc(x.id)+'">Delete</button></td></tr>'}).join('')+
+    '<tr><td colspan="3" style="text-align:left;font-weight:700">Total</td><td style="font-weight:700">'+money(tot)+'</td><td></td></tr></tbody>';
+}
+
+/* ---------- schedule ---------- */
+function renderSchedule(){
+  var t=$('#schTable');
+  if(!A.ready){t.innerHTML='<tbody><tr><td style="text-align:left;white-space:normal;padding:20px">Enter your loan details in Settings to see the repayment schedule.</td></tr></tbody>';return}
+  t.innerHTML='<thead><tr><th>#</th><th>Month</th><th>Opening balance</th><th>EMI</th><th>Interest</th><th>Principal</th><th>Closing balance</th></tr></thead><tbody>'+
+    A.sch.map(function(r){return '<tr><td>'+r.i+'</td><td>'+monthLabel(state.s.firstEmi,r.i-1)+'</td><td>'+money(r.open)+'</td><td>'+money(r.emi)+'</td><td>'+money(r.int)+'</td><td>'+money(r.prin)+'</td><td>'+money(r.close)+'</td></tr>'}).join('')+'</tbody>';
+}
+
+/* ---------- settings ---------- */
+var FIELDS=[
+ ['car','Car or nickname','text','e.g. Swift for Ravi'],
+ ['price','Car purchase price (₹)','number',''],
+ ['down','Down payment you paid (₹)','number','The initial amount paid from your own pocket'],
+ ['rate','Loan interest rate (% a year)','number','e.g. 9'],
+ ['tenure','Loan length (months)','number','Up to 120'],
+ ['firstEmi','First EMI month','month','The month your first EMI is due'],
+ ['monthly','Amount the person pays you each month (₹)','number','The agreed monthly payment for using the car'],
+ ['resale','Car resale value today (₹)','number','Your estimate. Used for equity and gain so far'],
+ ['endValue','Expected resale value when the loan ends (₹)','number','Used for the projected profit'],
+ ['extraPm','Planned extra spending per month (₹)','number','Average fuel, service and tyres you expect to cover']
+];
+function buildSettings(){
+  $('#setForm').innerHTML=FIELDS.map(function(f){var id='set-'+f[0],v=state.s[f[0]];
+    var attrs=f[2]==='number'?' type="number" min="0" step="'+(f[0]==='rate'?'0.01':'1')+'" inputmode="decimal"':f[2]==='month'?' type="month" placeholder="YYYY-MM"':' type="text"';
+    return '<div class="field"><label for="'+id+'">'+f[1]+'</label><input id="'+id+'" data-set="'+f[0]+'"'+attrs+' value="'+esc(v)+'">'+(f[3]?'<span class="hint">'+f[3]+'</span>':'')+'</div>'}).join('');
+  updateSettingsReadouts();
+}
+function updateSettingsReadouts(){
+  $('#rdLoan').textContent=money(A.loan);$('#rdEmi').textContent=A.emi?money(A.emi):'–';$('#rdInt').textContent=A.sch.length?money(A.totalInt):'–';
+}
+
+/* ---------- orchestration ---------- */
+function refresh(){
+  A=compute(state);renderHeader();renderOverview();renderSchedule();updateLedgerCells();updateSettingsReadouts();
+}
+function rebuildAll(){A=compute(state);buildLedger();buildExtras();buildSettings();refresh()}
+function setTab(t){
+  tab=t;$$('.tab').forEach(function(b){b.setAttribute('aria-selected',String(b.dataset.tab===t))});
+  $$('.panel').forEach(function(p){p.hidden=p.id!=='panel-'+t});
+  try{sessionStorage.setItem('cit-tab',t)}catch(e){}
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',function(ev){
+  var el=ev.target.closest('button');if(!el)return;
+  if(el.dataset.tab){setTab(el.dataset.tab);return}
+  if(el.dataset.go){setTab(el.dataset.go);return}
+  if(el.id==='clearEx'){if(el.dataset.sure){state=blank();touch();rebuildAll()}else{el.dataset.sure='1';el.textContent='Sure? Clear all examples';setTimeout(function(){if(el.isConnected){delete el.dataset.sure;el.textContent='Clear examples'}},3500)}return}
+  if(el.id==='wipe'){if(el.dataset.sure){state=blank();touch();rebuildAll();setTab('overview')}else{el.dataset.sure='1';el.textContent='Press again to erase everything';setTimeout(function(){if(el.isConnected){delete el.dataset.sure;el.textContent='Erase everything'}},3500)}return}
+  if(el.dataset.paid){var i=+el.dataset.paid;state.led[i]={r:state.s.monthly,e:A.sch[i-1].emi};touch();refresh();return}
+  if(el.id==='fillDue'){var cur=Math.min(A.n,monthIndexOfDate(state.s.firstEmi,todayStr()));for(var k=1;k<=cur;k++){var e=state.led[k];if(!e||(e.r==null&&e.e==null))state.led[k]={r:state.s.monthly,e:A.sch[k-1].emi}}touch();refresh();return}
+  if(el.dataset.del){if(el.dataset.sure){state.ex=state.ex.filter(function(x){return x.id!==el.dataset.del});touch();renderExtras();refresh()}else{el.dataset.sure='1';el.textContent='Sure?';setTimeout(function(){if(el.isConnected){delete el.dataset.sure;el.textContent='Delete'}},3000)}return}
+});
+document.addEventListener('change',function(ev){
+  var el=ev.target;
+  if(el.dataset.led){
+    var i=+el.dataset.i,e=state.led[i]||{r:null,e:null};e[el.dataset.led]=el.value===''?null:Math.max(0,num(el.value));
+    if(e.r==null&&e.e==null)delete state.led[i];else state.led[i]=e;
+    touch();refresh();return}
+  if(el.dataset.set){
+    var k=el.dataset.set,v=el.value;
+    if(k==='car'){state.s.car=v.trim()||'My car'}
+    else if(k==='firstEmi'){if(!/^\d{4}-\d{2}$/.test(v)){el.value=state.s.firstEmi;return}state.s.firstEmi=v}
+    else if(k==='tenure'){state.s.tenure=Math.max(0,Math.min(120,Math.round(num(v))));el.value=state.s.tenure}
+    else state.s[k]=Math.max(0,num(v));
+    touch();A=compute(state);buildLedger();refresh();return}
+});
+$('#exForm').addEventListener('submit',function(ev){
+  ev.preventDefault();var a=Math.round(num($('#exAmt').value)),d=$('#exDate').value;if(!(a>0)||!d)return;
+  state.ex.push({id:'x'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),d:d,c:$('#exCat').value,n:$('#exNote').value.trim(),a:a});
+  $('#exAmt').value='';$('#exNote').value='';touch();renderExtras();refresh();$('#exAmt').focus();
+});
+
+
+$('#exportBtn').addEventListener('click',function(){
+  var blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='car-investment-backup-'+todayStr()+'.json';document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500);
+  $('#impMsg').textContent='Backup file downloaded.';
+});
+$('#importFile').addEventListener('change',function(ev){
+  var f=ev.target.files&&ev.target.files[0];if(!f)return;
+  var rd=new FileReader();
+  rd.onload=function(){
+    try{
+      var d=JSON.parse(rd.result);
+      if(!d||typeof d!=='object'||!d.s||typeof d.s.price!=='number')throw new Error('bad');
+      state=normalize(d);touch();rebuildAll();$('#impMsg').textContent='Backup imported.';
+    }catch(e){$('#impMsg').textContent='That file is not a backup from this app.'}
+    ev.target.value='';
+  };
+  rd.readAsText(f);
+});
+
+var rz;window.addEventListener('resize',function(){clearTimeout(rz);rz=setTimeout(function(){if(A&&state)renderOverview()},200)});
+var saved=null;try{saved=sessionStorage.getItem('cit-tab')}catch(e){}
+if(saved&&$('#panel-'+saved))setTab(saved);
+init();
+})();
+</script>
+</body>
+</html>
